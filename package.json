@@ -1,7 +1,7 @@
 {
   "name": "camlab",
   "private": true,
-  "version": "1.0.0",
+  "version": "0.1.0",
   "type": "module",
   "description": "Webcam lab in the browser: face, hands, gestures, gaze & Flappy — MediaPipe, 100% local",
   "keywords": ["webcam", "mediapipe", "gaze", "hand-tracking", "face-detection", "flappy-bird", "poc"],

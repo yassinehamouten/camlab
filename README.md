@@ -1,6 +1,11 @@
 # CamLab 🎥
 
 [![CI](https://github.com/yassinehamouten/camlab/actions/workflows/ci.yml/badge.svg)](https://github.com/yassinehamouten/camlab/actions/workflows/ci.yml)
+[![Deploy](https://github.com/yassinehamouten/camlab/actions/workflows/deploy.yml/badge.svg)](https://yassinehamouten.github.io/camlab/)
+
+**[▶️ Live demo](https://yassinehamouten.github.io/camlab/)**
+
+![CamLab — start screen](docs/screenshot.png)
 
 A webcam lab in the browser: face tracking, hand tracking, gesture control, gaze
 pointing, and a Flappy Bird clone driven by an open palm. Powered by
