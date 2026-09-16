@@ -1,0 +1,17 @@
+# Dépendances & builds
+node_modules/
+dist/
+.vite/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Système
+.DS_Store
+Thumbs.db
+
+# Éditeurs
+.idea/
+.vscode/
+*.swp

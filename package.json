@@ -1,0 +1,24 @@
+{
+  "name": "camlab",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Webcam lab in the browser: face, hands, gestures, gaze & Flappy — MediaPipe, 100% local",
+  "keywords": ["webcam", "mediapipe", "gaze", "hand-tracking", "face-detection", "flappy-bird", "poc"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/yassinehamouten/camlab.git"
+  },
+  "scripts": {
+    "dev": "vite --open",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "vite": "^6.3.5",
+    "vitest": "^3.2.4"
+  }
+}

@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CamLab — face, hands &amp; gaze tracking in the browser</title>
+<style>
+  :root {
+    --bg: #0d1017;
+    --card: #151a24;
+    --border: #232b3a;
+    --text: #e6ebf4;
+    --muted: #8b95a7;
+    --accent: #5b8cff;
+    --ok: #34d399;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+  }
+  header {
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    padding: 14px 20px; border-bottom: 1px solid var(--border);
+  }
+  h1 { font-size: 18px; margin: 0; font-weight: 700; }
+  h1 span { color: var(--accent); }
+  .modes { display: flex; gap: 8px; }
+  .modes button {
+    background: var(--card); color: var(--text); border: 1px solid var(--border);
+    padding: 8px 14px; border-radius: 10px; cursor: pointer; font-size: 14px;
+    transition: border-color .15s, background .15s;
+  }
+  .modes button:hover { border-color: var(--accent); }
+  .modes button.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .modes button:disabled { opacity: .45; cursor: not-allowed; }
+  .camtoggle { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+  .camtoggle span { font-size: 16px; }
+  .camtoggle button {
+    background: var(--card); color: var(--text); border: 1px solid var(--border);
+    padding: 7px 12px; border-radius: 9px; cursor: pointer; font-size: 13px;
+  }
+  .camtoggle button.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .camtoggle button:disabled { opacity: .45; cursor: not-allowed; }
+
+  main { display: flex; gap: 16px; padding: 16px 20px; align-items: flex-start; flex-wrap: wrap; }
+  #stage {
+    position: relative; flex: 1 1 640px; min-width: 320px;
+    background: #000; border-radius: 14px; overflow: hidden;
+    border: 1px solid var(--border); aspect-ratio: 16/9;
+  }
+  #video { position: absolute; inset: 0; width: 1px; height: 1px; opacity: 0.001; pointer-events: none; }
+  #canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+  #start-screen {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 10px; text-align: center;
+    background: linear-gradient(160deg, #10141d, #0d1017); padding: 24px;
+  }
+  #start-screen h2 { margin: 0; font-size: 24px; }
+  #start-screen p { margin: 0; color: var(--muted); max-width: 480px; font-size: 14px; }
+  #start-screen small { color: var(--muted); opacity: .7; }
+  #startBtn {
+    margin-top: 10px; background: var(--accent); color: #fff; border: none;
+    padding: 12px 26px; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer;
+  }
+  #startBtn:hover { filter: brightness(1.1); }
+
+  #loading {
+    position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+    background: rgba(13,16,23,.8); backdrop-filter: blur(4px); font-size: 15px; color: var(--text);
+  }
+  #error {
+    position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+    background: rgba(60,18,24,.92); color: #ffd9dd; font-size: 15px; padding: 24px; text-align: center;
+  }
+  /* ⚠️ Ne pas nommer cet id "dbg" : les ids deviennent des globals (window.dbg)
+     et entrent en collision avec la fonction interne dbg() du glue WASM MediaPipe */
+  #dbgHud {
+    position: absolute; top: 10px; left: 10px; display: none; max-width: 90%;
+    background: rgba(90,16,24,.92); color: #ffd9dd; font: 12px/1.4 ui-monospace, monospace;
+    padding: 8px 10px; border-radius: 8px; pointer-events: none; z-index: 5;
+  }
+
+  /* Dock de tuiles (mode gestes) */
+  #dock {
+    position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
+    display: none; flex-direction: column; align-items: center; gap: 8px;
+    padding: 12px 16px; border-radius: 18px;
+    background: rgba(10,12,18,.72); border: 1px solid var(--border); backdrop-filter: blur(6px);
+  }
+  #tiles { display: grid; grid-template-columns: repeat(4, 46px); gap: 10px; }
+  .tile {
+    width: 46px; height: 46px; border-radius: 12px; cursor: pointer;
+    background: #2c3344; border: 2px solid rgba(255,255,255,.14);
+    transition: transform .12s, background .2s, border-color .12s, box-shadow .12s;
+  }
+  .tile.hover {
+    transform: scale(1.18); border-color: #fff;
+    box-shadow: 0 0 16px rgba(255,255,255,.35);
+  }
+  .tile.pop { animation: pop .3s ease; }
+  @keyframes pop {
+    0% { transform: scale(1); } 40% { transform: scale(1.45); } 100% { transform: scale(1); }
+  }
+  #resetBtn {
+    background: var(--card); color: var(--text); border: 1px dashed var(--muted);
+    border-radius: 999px; padding: 6px 16px; font-size: 13.5px; cursor: pointer;
+  }
+  #resetBtn.hover { border-color: #fff; }
+  .btnrow { display: flex; gap: 8px; margin-top: 12px; }
+  .btnrow button {
+    flex: 1; background: var(--card); color: var(--text); border: 1px dashed var(--muted);
+    border-radius: 999px; padding: 8px 10px; font-size: 13px; cursor: pointer;
+  }
+  .btnrow button:hover { border-color: var(--accent); color: #fff; }
+  .btnrow button.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; border-style: solid; }
+  .tiny { font-size: 12px; color: var(--muted); opacity: .8; margin: 10px 0 0; }
+
+  aside {
+    flex: 0 1 300px; min-width: 260px; display: flex; flex-direction: column; gap: 12px;
+  }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px;
+  }
+  .card h3 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .stats { display: flex; gap: 18px; }
+  .stat b { font-size: 22px; display: block; }
+  .stat span { font-size: 12px; color: var(--muted); }
+
+  .bar-row { margin: 8px 0; }
+  .bar-row label { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
+  .bar-row label em { font-style: normal; color: var(--muted); }
+  .bar { height: 7px; background: #0d1017; border-radius: 99px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), #a06bff); width: 0%; border-radius: 99px; }
+
+  #mood { font-size: 44px; line-height: 1; text-align: center; padding: 6px 0 2px; }
+
+  #gestureBadge { display: flex; align-items: center; gap: 12px; }
+  #gestureBadge .emoji { font-size: 40px; }
+  #gestureBadge .name { font-size: 17px; font-weight: 600; }
+
+  .legend { list-style: none; margin: 0; padding: 0; font-size: 13.5px; }
+  .legend li { display: flex; gap: 10px; padding: 5px 0; border-bottom: 1px dashed var(--border); }
+  .legend li:last-child { border-bottom: none; }
+  .legend .k { width: 30px; text-align: center; }
+
+  #log { list-style: none; margin: 0; padding: 0; font-size: 13px; color: var(--muted); }
+  #log li { padding: 4px 0; border-bottom: 1px dashed var(--border); }
+  #log li:last-child { border-bottom: none; }
+  #score { font-size: 26px; font-weight: 700; color: var(--ok); }
+  .hidden { display: none !important; }
+  footer { padding: 0 20px 20px; color: var(--muted); font-size: 12.5px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🎥 CamLab <span>— MediaPipe, 100% local</span></h1>
+  <div class="modes">
+    <button data-mode="face" disabled>😀 Face</button>
+    <button data-mode="hand" disabled>🖐 Hands</button>
+    <button data-mode="gesture" disabled>✨ Gestures</button>
+    <button data-mode="gaze" disabled>👀 Gaze</button>
+    <button data-mode="flappy" disabled>🐦 Flappy</button>
+  </div>
+  <div class="camtoggle" id="camToggle">
+    <span>📷</span>
+    <button data-cam="full" class="active" disabled>Full screen</button>
+    <button data-cam="pip" disabled>PIP</button>
+    <button data-cam="off" disabled>Off</button>
+  </div>
+</header>
+
+<main>
+  <div id="stage">
+    <video id="video" playsinline muted></video>
+    <canvas id="canvas"></canvas>
+    <div id="dbgHud"></div>
+
+    <div id="start-screen">
+      <h2>CamLab</h2>
+      <p>Face detection, hand tracking and gesture control — everything runs <b>locally in your browser</b>. No image ever leaves your machine.</p>
+      <button id="startBtn">Enable camera</button>
+      <small>HTTPS or localhost required · Models (~10 MB) are downloaded from the Google CDN on first launch</small>
+    </div>
+    <div id="loading">Loading model…</div>
+    <div id="error"></div>
+
+    <div id="dock">
+      <div id="tiles"></div>
+      <button id="resetBtn">↺ Reset everything</button>
+    </div>
+  </div>
+
+  <aside>
+    <div class="card">
+      <h3>Stats</h3>
+      <div class="stats">
+        <div class="stat"><b id="fps">—</b><span>FPS</span></div>
+        <div class="stat"><b id="count">—</b><span id="countLabel">faces</span></div>
+      </div>
+    </div>
+
+    <div class="card" id="panelFace">
+      <h3>Expressions (blendshapes)</h3>
+      <div id="mood">🙂</div>
+      <div id="blends"></div>
+    </div>
+
+    <div class="card hidden" id="panelHand">
+      <h3>Detected hands</h3>
+      <div id="handsInfo">—</div>
+    </div>
+
+    <div class="card hidden" id="panelGesture">
+      <h3>Recognized gesture</h3>
+      <div id="gestureBadge"><span class="emoji">—</span><span class="name">Aucun</span></div>
+      <h3 style="margin-top:14px">Controls</h3>
+      <ul class="legend">
+        <li><span class="k">☝️</span> Index finger → move the cursor</li>
+        <li><span class="k">⏱</span> Point at a tile + hold 1 s → click (green ring)</li>
+        <li><span class="k">🖐</span> Open palm → reset everything</li>
+        <li><span class="k">✊</span> Closed fist → freeze the cursor</li>
+      </ul>
+      <h3 style="margin-top:14px">Goal: color every tile</h3>
+      <div id="score">0 / 8</div>
+      <h3 style="margin-top:14px">Log</h3>
+      <ul id="log"></ul>
+    </div>
+    <div class="card hidden" id="panelGaze">
+      <h3>Gaze tracking</h3>
+      <div class="btnrow" style="margin-top:0">
+        <button id="gazeSrcEyes" class="active">👁 Eyes only</button>
+        <button id="gazeSrcHead">🎛 Head + eyes</button>
+      </div>
+      <div id="gazeStatus" style="font-size:13.5px;margin:10px 0">—</div>
+      <div id="gazeBars"></div>
+      <div class="btnrow">
+        <button id="gazeReset">↺ Reset grid</button>
+        <button id="gazeCalib">🎯 Recalibrate</button>
+      </div>
+      <h3 style="margin-top:14px">Goal: all 9 cells</h3>
+      <div id="gazeScore">0 / 9</div>
+      <p class="tiny">Head + iris = approximate pointing. Close your eyes for 1 s to recalibrate the neutral pose.</p>
+    </div>
+  </aside>
+</main>
+
+<footer><span id="delegateInfo"></span> · MediaPipe Tasks Vision v0.10.14 · Everything runs in WebAssembly + WebGL in your browser.</footer>
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
